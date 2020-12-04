@@ -17,6 +17,7 @@ def _get_ngrams(n, text):
     text_length = len(text)
     max_index_ngram_start = text_length - n
     for i in range(max_index_ngram_start + 1):
+
         ngram_set.add(tuple(text[i:i + n]))
     return ngram_set
 
@@ -31,4 +32,4 @@ def _get_word_ngrams(n, sentences):
 
     words = sum(sentences, [])
     # words = [w for w in words if w not in stopwords]
-    return _get_ngrams(n, words)
+    return _get_ngrams(n,words)

@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     parser.add_argument("-lower", type=str2bool, nargs='?',const=True,default=True)
 
-    parser.add_argument('-log_file', default='../../logs/cnndm.log')
+    parser.add_argument('-log_file', default='./BertSum/logs/cnndm.log')
 
     parser.add_argument('-dataset', default='', help='train, valid or test, defaul will process all datasets')
 

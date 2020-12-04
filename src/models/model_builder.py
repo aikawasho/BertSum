@@ -6,7 +6,8 @@ from torch.nn.init import xavier_uniform_
 
 from models.encoder import TransformerInterEncoder, Classifier, RNNEncoder
 from models.optimizers import Optimizer
-
+#日本語モデル
+from transformers.modeling_bert import BertForMaskedLM
 
 def build_optim(args, model, checkpoint):
     """ Build optimizer """
@@ -44,7 +45,10 @@ class Bert(nn.Module):
     def __init__(self, temp_dir, load_pretrained_bert, bert_config):
         super(Bert, self).__init__()
         if(load_pretrained_bert):
-            self.model = BertModel.from_pretrained('bert-base-uncased', cache_dir=temp_dir)
+            #self.model = BertModel.from_pretrained('bert-base-uncased', cache_dir=temp_dir)
+            #self.model = BertModel.from_pretrained('Japanese_L-12_H-768_A-12_E-30_BPE_transformers/pytorch_model.bin')
+            #config = BertConfig.from_json_file('./Japanese_L-12_H-768_A-12_E-30_BPE_transformers/config.json')
+            self.model = BertModel.from_pretrained('bert/Japanese_L-12_H-768_A-12_E-30_BPE_transformers')
         else:
             self.model = BertModel(bert_config)
 
