@@ -19,7 +19,7 @@ from prepro.utils import _get_word_ngrams
 
 # 日本語BERT用のtokenizerを宣言
 from transformers.tokenization_bert_japanese import BertJapaneseTokenizer
-tokenizer = BertJapaneseTokenizer.from_pretrained('cl-tohoku/bert-base-japanese-whole-word-masking')
+tokenizer = BertJapaneseTokenizer.from_pretrained('/Users/shota/Documents/ginza/Japanese_L-12_H-768_A-12_E-30_BPE_transformers', do_lower_case=True)
 
 
 def load_json(p, lower):
@@ -203,9 +203,10 @@ class BertData():
         #日本語の場合
         src = src.split('。') 
         src = [a+ '。' for a in src]
+        src = src[:-1]
         tgt = tgt.split('。') 
         tgt = [a+ '。' for a in tgt]
-        
+        tgt = tgt[:-1]
         
         original_src_txt = [' '.join(s) for s in src]
 
@@ -214,7 +215,7 @@ class BertData():
             labels[l] = 1
 
         idxs = [i for i, s in enumerate(src) if (len(s) > self.args.min_src_ntokens)]
-        
+   
         #日本語の場合
         src = [self.tokenizer.tokenize(s) for s in src]
         tgt = [self.tokenizer.tokenize(t) for t in tgt]
@@ -232,6 +233,7 @@ class BertData():
             return None
 
         src_txt = [' '.join(sent) for sent in src]
+        print(src_txt)
         # text = [' '.join(ex['src_txt'][i].split()[:self.args.max_src_ntokens]) for i in idxs]
         # text = [_clean(t) for t in text]
         text = '[SEP][CLS]'.join(src_txt)
@@ -303,7 +305,16 @@ def tokenize(args):
             "The tokenized stories directory %s contains %i files, but it should contain the same number as %s (which has %i files). Was there an error during tokenization?" % (
             tokenized_stories_dir, num_tokenized, stories_dir, num_orig))
     print("Successfully finished tokenizing %s to %s.\n" % (stories_dir, tokenized_stories_dir))
+    
+def _format_to_bert3(args,src,tgt):
 
+    oracle_ids = greedy_selection2(src, tgt, 3)
+    bert = BertData(args)
+    b_data = bert.preprocess(src, tgt, oracle_ids)
+    indexed_tokens, labels, segments_ids, cls_ids, src_txt, tgt_txt = b_data
+    b_data_dict = {"src": indexed_tokens, "labels": labels, "segs": segments_ids, 'clss': cls_ids,
+                       'src_txt': src_txt, "tgt_txt": tgt_txt}
+    return b_data_dict
 
 def _format_to_bert2(params):
     json_file, args, save_file = params
