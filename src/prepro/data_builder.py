@@ -142,8 +142,10 @@ def greedy_selection2(doc_sent_list, abstract_sent_list, summary_size):
 
     
     max_rouge = 0.0
+    #日本語の場合
     doc_sent_list = doc_sent_list.split('。') 
-    sents = [a+ '。' for a in doc_sent_list]
+    doc_sent_list = [a+ '。' for a in doc_sent_list]
+    sents = doc_sent_list[:-1]
     abstract = tokenizer.tokenize(abstract_sent_list)
     sents = [tokenizer.tokenize(a) for a in sents]
     #abstract = _rouge_clean(' '.join(abstract_sent_list)).split()
@@ -179,6 +181,8 @@ def greedy_selection2(doc_sent_list, abstract_sent_list, summary_size):
         max_rouge = cur_max_rouge
 
     return sorted(selected)
+
+
 
 def hashhex(s):
     """Returns a heximal formated SHA1 hash of the input string."""
@@ -233,7 +237,7 @@ class BertData():
             return None
 
         src_txt = [' '.join(sent) for sent in src]
-        print(src_txt)
+       
         # text = [' '.join(ex['src_txt'][i].split()[:self.args.max_src_ntokens]) for i in idxs]
         # text = [_clean(t) for t in text]
         text = '[SEP][CLS]'.join(src_txt)
@@ -257,6 +261,55 @@ class BertData():
         src_txt = [original_src_txt[i] for i in idxs]
 
         return src_subtoken_idxs, labels, segments_ids, cls_ids, src_txt, tgt_txt
+    
+    def preprocess_pred(self, src):
+
+        if (len(src) == 0):
+            return None
+        #日本語の場合
+        src = src.split('。') 
+        src = [a+ '。' for a in src]
+        src = src[:-1]
+        
+        original_src_txt = [' '.join(s) for s in src]
+
+        idxs = [i for i, s in enumerate(src) if (len(s) > self.args.min_src_ntokens)]
+   
+        #日本語の場合
+        src = [self.tokenizer.tokenize(s) for s in src]
+
+        
+        src = [src[i][:self.args.max_src_ntokens] for i in idxs]
+
+        src = src[:self.args.max_nsents]
+
+        if (len(src) < self.args.min_nsents):
+            
+            return None
+
+        src_txt = [' '.join(sent) for sent in src]
+       
+        # text = [' '.join(ex['src_txt'][i].split()[:self.args.max_src_ntokens]) for i in idxs]
+        # text = [_clean(t) for t in text]
+        text = '[SEP][CLS]'.join(src_txt)
+        src_subtokens = self.tokenizer.tokenize(text)
+        src_subtokens = src_subtokens[:510]
+        src_subtokens = ['[CLS]'] + src_subtokens + ['[SEP]']
+
+        src_subtoken_idxs = self.tokenizer.convert_tokens_to_ids(src_subtokens)
+        _segs = [-1] + [i for i, t in enumerate(src_subtoken_idxs) if t == self.sep_vid]
+        segs = [_segs[i] - _segs[i - 1] for i in range(1, len(_segs))]
+        segments_ids = []
+        for i, s in enumerate(segs):
+            if (i % 2 == 0):
+                segments_ids += s * [0]
+            else:
+                segments_ids += s * [1]
+        cls_ids = [i for i, t in enumerate(src_subtoken_idxs) if t == self.cls_vid]
+
+        src_txt = [original_src_txt[i] for i in idxs]
+
+        return src_subtoken_idxs, segments_ids, cls_ids, src_txt,
 
 
 def format_to_bert(args):
@@ -305,6 +358,19 @@ def tokenize(args):
             "The tokenized stories directory %s contains %i files, but it should contain the same number as %s (which has %i files). Was there an error during tokenization?" % (
             tokenized_stories_dir, num_tokenized, stories_dir, num_orig))
     print("Successfully finished tokenizing %s to %s.\n" % (stories_dir, tokenized_stories_dir))
+    
+    
+def _format_to_bert_pred(args,src):
+
+    bert = BertData(args)
+    b_data = bert.preprocess_pred(src)
+    if (b_data is None):
+        indexed_tokens, segments_ids, cls_ids, src_txt = ['　' , '　', '　', '　']
+    else:
+        indexed_tokens, segments_ids, cls_ids, src_txt = b_data
+    b_data_dict = {"src": indexed_tokens, "segs": segments_ids, 'clss': cls_ids,
+                       'src_txt': src_txt}
+    return b_data_dict
     
 def _format_to_bert3(args,src,tgt):
 
