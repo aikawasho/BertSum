@@ -1,3 +1,5 @@
+# coding: UTF-8
+
 import gc
 import glob
 import hashlib
@@ -16,10 +18,11 @@ from pytorch_pretrained_bert import BertTokenizer
 from others.logging import logger
 from others.utils import clean
 from prepro.utils import _get_word_ngrams
+import prepro.Rouge
 
 # 日本語BERT用のtokenizerを宣言
 from transformers.tokenization_bert_japanese import BertJapaneseTokenizer
-tokenizer = BertJapaneseTokenizer.from_pretrained('/Users/shota/Documents/ginza/Japanese_L-12_H-768_A-12_E-30_BPE_transformers', do_lower_case=True)
+tokenizer = BertJapaneseTokenizer.from_pretrained('/Users/shota/Documents/ginza/Japanese_L-12_H-768_A-12_E-30_BPE_WWM_transformers', do_lower_case=True)
 
 
 def load_json(p, lower):
@@ -98,6 +101,43 @@ def combination_selection(doc_sent_list, abstract_sent_list, summary_size):
                 max_idx = c
                 max_rouge = rouge_score
     return sorted(list(max_idx))
+
+def combination_selection2(doc_sent_list, abstract_sent_list, summary_size):
+
+
+    max_rouge = 0.0
+    #日本語の場合
+    doc_sent_list = doc_sent_list.split('。') 
+    doc_sent_list = [a+ '。' for a in doc_sent_list]
+    sents = doc_sent_list[:-1]
+    abstract = tokenizer.tokenize(abstract_sent_list)
+    sents = [tokenizer.tokenize(a) for a in sents]
+    
+    evaluated_1grams = [_get_word_ngrams(1, [sent]) for sent in sents]
+    reference_1grams = _get_word_ngrams(1, [abstract])
+    evaluated_2grams = [_get_word_ngrams(2, [sent]) for sent in sents]
+    reference_2grams = _get_word_ngrams(2, [abstract])
+
+    impossible_sents = []
+    for s in range(summary_size + 1):
+        combinations = itertools.combinations([i for i in range(len(sents)) if i not in impossible_sents], s + 1)
+        for c in combinations:
+            candidates_1 = [evaluated_1grams[idx] for idx in c]
+            candidates_1 = set.union(*map(set, candidates_1))
+            candidates_2 = [evaluated_2grams[idx] for idx in c]
+            candidates_2 = set.union(*map(set, candidates_2))
+            rouge_1 = cal_rouge(candidates_1, reference_1grams)['f']
+            rouge_2 = cal_rouge(candidates_2, reference_2grams)['f']
+
+            rouge_score = rouge_1 + rouge_2
+            if (s == 0 and rouge_score == 0):
+                impossible_sents.append(c[0])
+            if rouge_score > max_rouge:
+                max_idx = c
+                max_rouge = rouge_score
+    return sorted(list(max_idx))
+
+
 
 
 def greedy_selection(doc_sent_list, abstract_sent_list, summary_size):
@@ -182,6 +222,23 @@ def greedy_selection2(doc_sent_list, abstract_sent_list, summary_size):
 
     return sorted(selected)
 
+
+def greedy_selection3(doc_sent_list, abstract_sent_list, summary_size):
+    #日本語の場合
+    selected = []
+    doc_sent_list = doc_sent_list.split('。') 
+    doc_sent_list = [a+ '。' for a in doc_sent_list]
+    sents = doc_sent_list[:-1]
+    if len(sents) < summary_size:
+        return(selected)
+    a = dict()
+
+    for s,i in enumerate(sents):
+        tatal_score = Rouge.Rouge1(s,abstract_sent_list)+Rouge.Rouge2(s,abstract_sent_list)+Rouge.RougeL(s,abstract_sent_list)
+        a.update(i=total_score)
+    a =  sorted(a.items(), key=lambda x:x[1],reverse = True)[0:summary_size-1]
+    selected = a.keys()
+    return(selected)
 
 
 def hashhex(s):
@@ -374,7 +431,7 @@ def _format_to_bert_pred(args,src):
     
 def _format_to_bert3(args,src,tgt):
 
-    oracle_ids = greedy_selection2(src, tgt, 3)
+    oracle_ids = combination_selection2(src, tgt, 3)
     bert = BertData(args)
     b_data = bert.preprocess(src, tgt, oracle_ids)
     indexed_tokens, labels, segments_ids, cls_ids, src_txt, tgt_txt = b_data
@@ -403,7 +460,7 @@ def _format_to_bert2(params):
         if (args.oracle_mode == 'greedy'):
             oracle_ids = greedy_selection2(source, tgt, 3)
         elif (args.oracle_mode == 'combination'):
-            oracle_ids = combination_selection(source, tgt, 3)
+            oracle_ids = combination_selection2(source, tgt, 3)
 
         b_data = bert.preprocess(source, tgt, oracle_ids)
         if (b_data is None):
@@ -431,9 +488,9 @@ def _format_to_bert(params):
     for d in jobs:
         source, tgt = d['src'], d['tgt']
         if (args.oracle_mode == 'greedy'):
-            oracle_ids = greedy_selection(source, tgt, 3)
+            oracle_ids = greedy_selection3(source, tgt, 3)
         elif (args.oracle_mode == 'combination'):
-            oracle_ids = combination_selection(source, tgt, 3)
+            oracle_ids = combination_selection2(source, tgt, 3)
         b_data = bert.preprocess(source, tgt, oracle_ids)
         if (b_data is None):
             continue

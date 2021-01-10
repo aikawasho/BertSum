@@ -48,7 +48,7 @@ class Bert(nn.Module):
             #self.model = BertModel.from_pretrained('bert-base-uncased', cache_dir=temp_dir)
             #self.model = BertModel.from_pretrained('Japanese_L-12_H-768_A-12_E-30_BPE_transformers/pytorch_model.bin')
             #config = BertConfig.from_json_file('./Japanese_L-12_H-768_A-12_E-30_BPE_transformers/config.json')
-            self.model = BertModel.from_pretrained('bert/Japanese_L-12_H-768_A-12_E-30_BPE_transformers')
+            self.model = BertModel.from_pretrained('/Users/shota/Documents/ginza/Japanese_L-12_H-768_A-12_E-30_BPE_WWM_transformers')
         else:
             self.model = BertModel(bert_config)
 
