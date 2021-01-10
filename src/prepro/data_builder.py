@@ -18,7 +18,7 @@ from pytorch_pretrained_bert import BertTokenizer
 from others.logging import logger
 from others.utils import clean
 from prepro.utils import _get_word_ngrams
-import prepro.Rouge
+from prepro import Rouge2
 
 # 日本語BERT用のtokenizerを宣言
 from transformers.tokenization_bert_japanese import BertJapaneseTokenizer
@@ -106,36 +106,27 @@ def combination_selection2(doc_sent_list, abstract_sent_list, summary_size):
 
 
     max_rouge = 0.0
+    selected = []
     #日本語の場合
     doc_sent_list = doc_sent_list.split('。') 
     doc_sent_list = [a+ '。' for a in doc_sent_list]
     sents = doc_sent_list[:-1]
     abstract = tokenizer.tokenize(abstract_sent_list)
     sents = [tokenizer.tokenize(a) for a in sents]
-    
-    evaluated_1grams = [_get_word_ngrams(1, [sent]) for sent in sents]
-    reference_1grams = _get_word_ngrams(1, [abstract])
-    evaluated_2grams = [_get_word_ngrams(2, [sent]) for sent in sents]
-    reference_2grams = _get_word_ngrams(2, [abstract])
-
+    if len(sents) < summary_size:
+        return(selected)
+        
     impossible_sents = []
-    for s in range(summary_size + 1):
-        combinations = itertools.combinations([i for i in range(len(sents)) if i not in impossible_sents], s + 1)
+    for s in range(summary_size-1):
+        combinations = itertools.combinations([i for i in range(len(sents))], s + 1)
         for c in combinations:
-            candidates_1 = [evaluated_1grams[idx] for idx in c]
-            candidates_1 = set.union(*map(set, candidates_1))
-            candidates_2 = [evaluated_2grams[idx] for idx in c]
-            candidates_2 = set.union(*map(set, candidates_2))
-            rouge_1 = cal_rouge(candidates_1, reference_1grams)['f']
-            rouge_2 = cal_rouge(candidates_2, reference_2grams)['f']
-
-            rouge_score = rouge_1 + rouge_2
-            if (s == 0 and rouge_score == 0):
-                impossible_sents.append(c[0])
-            if rouge_score > max_rouge:
-                max_idx = c
-                max_rouge = rouge_score
-    return sorted(list(max_idx))
+            candidate = [sents[i] for i in c]
+            candidate = ''.join(candidate)
+            total_score = Rouge2.Rouge1(candidate,abstract_sent_list)+Rouge2.Rouge2(candidate,abstract_sent_list)+Rouge2.RougeL(candidate,abstract_sent_list)
+            if total_score > max_rouge:
+                selected = c
+                max_rouge = total_score
+    return sorted(list(selected))
 
 
 
@@ -219,7 +210,7 @@ def greedy_selection2(doc_sent_list, abstract_sent_list, summary_size):
             return selected
         selected.append(cur_id)
         max_rouge = cur_max_rouge
-
+        print(type(sorted(selected)))
     return sorted(selected)
 
 
@@ -233,12 +224,14 @@ def greedy_selection3(doc_sent_list, abstract_sent_list, summary_size):
         return(selected)
     a = dict()
 
-    for s,i in enumerate(sents):
-        tatal_score = Rouge.Rouge1(s,abstract_sent_list)+Rouge.Rouge2(s,abstract_sent_list)+Rouge.RougeL(s,abstract_sent_list)
-        a.update(i=total_score)
+    for i,s in enumerate(sents):
+    
+        total_score = Rouge2.Rouge1(s,abstract_sent_list)+Rouge2.Rouge2(s,abstract_sent_list)+Rouge2.RougeL(s,abstract_sent_list)
+        a[i]=total_score
     a =  sorted(a.items(), key=lambda x:x[1],reverse = True)[0:summary_size-1]
-    selected = a.keys()
-    return(selected)
+    selected = [i[0] for i in a]
+    
+    return(sorted(selected))
 
 
 def hashhex(s):
@@ -458,7 +451,7 @@ def _format_to_bert2(params):
    
         tgt = tgts[i]
         if (args.oracle_mode == 'greedy'):
-            oracle_ids = greedy_selection2(source, tgt, 3)
+            oracle_ids = greedy_selection3(source, tgt, 3)
         elif (args.oracle_mode == 'combination'):
             oracle_ids = combination_selection2(source, tgt, 3)
 
